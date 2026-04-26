@@ -159,6 +159,10 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew jacocoUnitTestReport --daemon
 
+        # specific unit test for the ImageCropperg
+      - name: Run ImageCropper Tests
+        run: ./gradlew :AnkiDroid:testPlayDebugUnitTest --tests "com.ichi2.imagecropper.ImageCropperTest" --daemon
+
       - name: Store Logcat as Artifact
         # cancelled() handles test timeouts
         # remove when test timeouts cause a failure()
