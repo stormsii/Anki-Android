@@ -19,6 +19,7 @@ import android.content.Context
 import android.util.AttributeSet
 import com.ichi2.anki.R
 import com.ichi2.anki.cardviewer.GestureProcessor
+import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.dialogs.CardSideSelectionDialog
 import com.ichi2.anki.preferences.allPreferences
 import com.ichi2.anki.reviewer.Binding
@@ -78,6 +79,18 @@ open class ReviewerControlPreference : ControlPreference {
                 it::class == ReviewerControlPreference::class
             } as List<ReviewerControlPreference>
 
+    @NeedsTest("Ensure correct preference is returned for side-specific binding")
+    override fun getPreferenceAssignedTo(binding: Binding): ControlPreference? {
+        val cardSide = side ?: return super.getPreferenceAssignedTo(binding)
+        val reviewerBinding = ReviewerBinding(binding, cardSide)
+        // Bindings only conflict when the card sides overlap
+        return getPreferencesAssignedTo(reviewerBinding).firstOrNull()
+    }
+
+    @NeedsTest("Ensure correct preferences are returned for side-specific binding")
+    private fun getPreferencesAssignedTo(binding: ReviewerBinding): List<ReviewerControlPreference> =
+        getRelatedPreferences().filter { preference -> binding in preference.getMappableBindings() }
+
     fun interface OnBindingSelectedListener {
         /**
          * Called when a binding is selected, before the side is set. This allows listeners
@@ -114,9 +127,19 @@ open class ReviewerControlPreference : ControlPreference {
         side: CardSide,
     ) {
         val newBinding = ReviewerBinding(binding, side)
-        getPreferenceAssignedTo(binding)?.removeMappableBinding(newBinding)
+        // Before adding new binding, remove all conflicting bindings
+        getPreferencesAssignedTo(newBinding).forEach { preference ->
+            preference.removeDuplicateBindings(newBinding)
+        }
         val bindings = ReviewerBinding.fromPreferenceString(value).toMutableList()
         bindings.add(newBinding)
+        value = bindings.toPreferenceString()
+    }
+
+    @NeedsTest("Check dup removal, including partial side overlap: e.g. QUESTION & BOTH")
+    private fun removeDuplicateBindings(binding: ReviewerBinding) {
+        val bindings = ReviewerBinding.fromPreferenceString(value).toMutableList()
+        bindings.removeAll { it == binding } // Uses overridden .equals() to detect overlaps
         value = bindings.toPreferenceString()
     }
 

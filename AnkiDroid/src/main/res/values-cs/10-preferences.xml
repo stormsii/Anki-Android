@@ -226,7 +226,7 @@
         Pokud není nastaven, bude místo toho použit výchozí AnkiWeb server.
         <a href="%s">Zjistit více</a>
         ]]></string>
-    <string name="custom_sync_server_base_url_title" maxLength="41">Synchronizovat url</string>
+    <string name="custom_sync_server_base_url_title" maxLength="41">Sync URL</string>
     <string name="custom_sync_certificate_title" maxLength="41">Vlastní kořenový certifikát (PEM)</string>
     <!-- Key Bindings -->
     <string name="keyboard">Klávesnice</string>
@@ -389,4 +389,5 @@
     <string name="flip_and_answer" maxLength="41" comment="Configuration of the \'Answer\' commands to answer the card if on the answer side, and flip it if on the question side">Flip and answer</string>
     <!--Keyboard shortcuts dialog-->
     <string name="open_settings" comment="Description of the shortcut that opens the app settings">Otevřít nastavení</string>
+    <string name="related_settings_title" comment="Title of the section for related settings">Related settings</string>
 </resources>

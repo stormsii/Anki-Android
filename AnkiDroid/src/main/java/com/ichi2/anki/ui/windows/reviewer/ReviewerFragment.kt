@@ -49,13 +49,16 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import anki.scheduler.CardAnswer.Rating
+import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.DispatchKeyEventListener
 import com.ichi2.anki.Flag
 import com.ichi2.anki.R
+import com.ichi2.anki.android.back.doubleBackPressCallback
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.utils.android.isRobolectric
+import com.ichi2.anki.compat.CompatHelper.Companion.compat
 import com.ichi2.anki.databinding.FragmentReviewerBinding
 import com.ichi2.anki.dialogs.showDeckOptionsSelectionDialog
 import com.ichi2.anki.dialogs.tags.TagsDialog
@@ -70,7 +73,9 @@ import com.ichi2.anki.previewer.setFrameStyle
 import com.ichi2.anki.previewer.stdHtml
 import com.ichi2.anki.reviewer.BindingMap
 import com.ichi2.anki.reviewer.ReviewerBinding
+import com.ichi2.anki.scheduling.ForgetCardsDialog
 import com.ichi2.anki.scheduling.SetDueDateDialog
+import com.ichi2.anki.scheduling.registerOnForgetHandler
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.FrameStyle
 import com.ichi2.anki.settings.enums.HideSystemBars
@@ -94,6 +99,8 @@ import com.squareup.seismic.ShakeDetector
 import dev.androidbroadcast.vbpd.viewBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.max
@@ -116,7 +123,6 @@ class ReviewerFragment :
     private val sensorManager get() = ContextCompat.getSystemService(requireContext(), SensorManager::class.java)
     private val whiteboardFragment get() = childFragmentManager.findFragmentByTag(WhiteboardFragment::class.jvmName) as? WhiteboardFragment
     private val isBigScreen: Boolean get() = resources.configuration.smallestScreenWidthDp >= 720
-    private var webviewHasFocus = false
 
     override val baseSnackbarBuilder: SnackbarBuilder = {
         anchorView =
@@ -164,7 +170,7 @@ class ReviewerFragment :
         super.onViewCreated(view, savedInstanceState)
 
         binding.backButton.setOnClickListener {
-            requireActivity().finish()
+            requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
         setupBindings()
@@ -176,6 +182,7 @@ class ReviewerFragment :
         setupToolbarPosition()
         setupAnswerTimer()
         setupMargins()
+        setupResetProgress()
         setupCheckPronunciation()
         setupActions()
         setupWhiteboard()
@@ -320,7 +327,7 @@ class ReviewerFragment :
 
     @NeedsTest("Whiteboard takes priority on key events")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (webviewHasFocus ||
+        if (
             event.action != KeyEvent.ACTION_DOWN ||
             view?.let { binding.typeAnswerEditText }?.isFocused == true
         ) {
@@ -499,6 +506,17 @@ class ReviewerFragment :
         }
     }
 
+    private fun setupResetProgress() {
+        viewModel.resetProgressFlow
+            .flowWithLifecycle(lifecycle)
+            .onEach {
+                showDialogFragment(ForgetCardsDialog())
+            }.launchIn(lifecycleScope)
+        // TODO handle 'Reset progress' in the ViewModel instead of the activity, once
+        //  a mechanism of showing a progress bar if the operation takes too long is implemented
+        registerOnForgetHandler { listOf(viewModel.getCardId()) }
+    }
+
     private fun setupCheckPronunciation() {
         viewModel.voiceRecorderEnabledFlow.flowWithLifecycle(lifecycle).collectIn(lifecycleScope) { isEnabled ->
             if (isEnabled && binding.checkPronunciationContainer.getFragment<CheckPronunciationFragment?>() == null) {
@@ -527,8 +545,20 @@ class ReviewerFragment :
             },
             false,
         )
+        val isUsingGesturesNavigation = compat.isUsingSystemGestureNavigation(requireContext())
+        val doubleBackCallback =
+            doubleBackPressCallback(
+                enabled = false,
+                onFirstBack = { showSnackbar(R.string.back_pressed_once, Snackbar.LENGTH_SHORT) },
+                shouldReEnable = {
+                    viewModel.whiteboardEnabledFlow.value && isUsingGesturesNavigation
+                },
+            )
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, doubleBackCallback)
         viewModel.whiteboardEnabledFlow.flowWithLifecycle(lifecycle).collectIn(lifecycleScope) { isEnabled ->
             binding.whiteboardContainer.isVisible = isEnabled
+            doubleBackCallback.isEnabled =
+                isEnabled && compat.isUsingSystemGestureNavigation(requireContext())
             if (whiteboardFragment == null && isEnabled) {
                 childFragmentManager.commit {
                     add(R.id.whiteboard_container, WhiteboardFragment::class.java, null, WhiteboardFragment::class.jvmName)
@@ -671,8 +701,6 @@ class ReviewerFragment :
                 }
                 "ankidroid" -> {
                     when (url.host) {
-                        "focusin" -> webviewHasFocus = true
-                        "focusout" -> webviewHasFocus = false
                         "show-answer" -> viewModel.onShowAnswer()
                     }
                     true

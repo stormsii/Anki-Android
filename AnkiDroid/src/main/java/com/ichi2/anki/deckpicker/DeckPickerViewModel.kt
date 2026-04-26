@@ -64,6 +64,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.ankiweb.rsdroid.RustCleanup
@@ -88,7 +89,7 @@ class DeckPickerViewModel :
         }
 
     /** User filter of the deck list. Shown as a search in the UI */
-    private val flowOfCurrentDeckFilter = MutableStateFlow("")
+    private val flowOfCurrentDeckFilter = MutableStateFlow(DeckFilters.create(""))
 
     /**
      * Keep track of which deck was last given focus in the deck list. If we find that this value
@@ -156,8 +157,6 @@ class DeckPickerViewModel :
 
     val flowOfPromptUserToUpdateScheduler = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    val flowOfUndoUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-
     val flowOfCollectionHasNoCards = MutableStateFlow(true)
 
     val flowOfDeckListInInitialState =
@@ -192,6 +191,9 @@ class DeckPickerViewModel :
     // Otherwise, the progress indicator remains indefinitely. This replay=1 ensures that the collector will
     // receive the dismissal event even if it starts after the emission.
     val flowOfDecksReloaded = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1)
+
+    // TODO: Use a sensible default rather than null
+    val flowOfOptionsMenuState = MutableStateFlow<OptionsMenuState?>(null)
 
     /**
      * Deletes the provided deck, child decks. and all cards inside.
@@ -273,6 +275,17 @@ class DeckPickerViewModel :
                 sched.rebuildFilteredDeck(decks.selected())
             }
             flowOfDeckCountsChanged.emit(Unit)
+        }
+
+    /**
+     * Marks [deckId] as the currently selected deck and updates the selection in the deck list.
+     */
+    fun selectDeck(deckId: DeckId) =
+        viewModelScope.launch {
+            // TODO: should we always reset the Card Browser default deck here?
+            withCol { decks.select(deckId) }
+            focusedDeck = deckId
+            flowOfRefreshDeckList.emit(Unit)
         }
 
     fun browseCards(deckId: DeckId) =
@@ -379,7 +392,7 @@ class DeckPickerViewModel :
                 // TODO: This is in the wrong place
                 // current deck may have changed
                 focusedDeck = withCol { decks.current().id }
-                flowOfUndoUpdated.emit(Unit)
+                refreshUndoMenuState()
 
                 flowOfDecksReloaded.emit(Unit)
             }
@@ -389,7 +402,7 @@ class DeckPickerViewModel :
 
     fun updateDeckFilter(filterText: String) {
         Timber.d("filter: %s", filterText)
-        flowOfCurrentDeckFilter.value = filterText
+        flowOfCurrentDeckFilter.value = DeckFilters.create(filterText)
     }
 
     fun toggleDeckExpand(deckId: DeckId) =
@@ -555,21 +568,45 @@ class DeckPickerViewModel :
     }
 
     /**
-     * Updates the menu state with current collection information
+     * Current state of the options menu, or `null` if the collection is inaccessible.
+     *
+     * Updated by [refreshMenuState] and [refreshUndoMenuState].
      */
-    suspend fun updateMenuState(): OptionsMenuState? =
+    val optionsMenuState: OptionsMenuState? get() = flowOfOptionsMenuState.value
+
+    /**
+     * Recomputes the full options menu state from the current collection.
+     */
+    suspend fun refreshMenuState() {
+        flowOfOptionsMenuState.value =
+            withOpenColOrNull {
+                val searchIcon = decks.count() >= 10
+                val undoLabel = undoLabel()
+                val undoAvailable = undoAvailable()
+                // besides checking for cards being available also consider if we have empty decks
+                val isColEmpty = isEmpty && decks.count() == 1
+                // the correct sync status is fetched in the next call so "Normal" is used as a placeholder
+                OptionsMenuState(searchIcon, undoLabel, SyncIconState.Normal, undoAvailable, isColEmpty)
+            }?.let { (searchIcon, undoLabel, _, undoAvailable, isColEmpty) ->
+                val syncIcon = fetchSyncIconState()
+                OptionsMenuState(searchIcon, undoLabel, syncIcon, undoAvailable, isColEmpty)
+            }
+    }
+
+    /**
+     * Refreshes only the undo-related fields of the menu state, leaving the rest untouched.
+     *
+     * @see refreshMenuState
+     */
+    private suspend fun refreshUndoMenuState() {
         withOpenColOrNull {
-            val searchIcon = decks.count() >= 10
-            val undoLabel = undoLabel()
-            val undoAvailable = undoAvailable()
-            // besides checking for cards being available also consider if we have empty decks
-            val isColEmpty = isEmpty && decks.count() == 1
-            // the correct sync status is fetched in the next call so "Normal" is used as a placeholder
-            OptionsMenuState(searchIcon, undoLabel, SyncIconState.Normal, undoAvailable, isColEmpty)
-        }?.let { (searchIcon, undoLabel, _, undoAvailable, isColEmpty) ->
-            val syncIcon = fetchSyncIconState()
-            OptionsMenuState(searchIcon, undoLabel, syncIcon, undoAvailable, isColEmpty)
+            val newUndoLabel = undoLabel()
+            val newUndoAvailable = undoAvailable()
+            flowOfOptionsMenuState.update { current ->
+                current?.copy(undoLabel = newUndoLabel, undoAvailable = newUndoAvailable)
+            }
         }
+    }
 
     @SuppressLint("UseKtx")
     fun getPreviousVersion(

@@ -21,7 +21,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.pm.PackageManager.GET_PERMISSIONS
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -37,11 +36,12 @@ import androidx.fragment.app.FragmentManager
 import com.ichi2.anki.PermissionSet
 import com.ichi2.anki.R
 import com.ichi2.anki.common.utils.android.isRobolectric
+import com.ichi2.anki.compat.CompatHelper.Companion.getPackageInfoCompat
+import com.ichi2.anki.compat.GET_PERMISSIONS_L
+import com.ichi2.anki.compat.PackageInfoFlagsCompat
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.showThemedToast
 import com.ichi2.anki.ui.windows.permissions.PermissionsBottomSheet
-import com.ichi2.compat.CompatHelper.Companion.getPackageInfoCompat
-import com.ichi2.compat.PackageInfoFlagsCompat
 import com.ichi2.utils.Permissions.MANAGE_EXTERNAL_STORAGE
 import com.ichi2.utils.Permissions.arePermissionsDefinedInManifest
 import com.ichi2.utils.Permissions.isExternalStorageManager
@@ -299,7 +299,7 @@ object Permissions {
     private fun Context.getPermissionsDefinedInManifest(packageName: String): Array<out String>? =
         try {
             // requestedPermissions => <uses-permission> in manifest
-            val flags = PackageInfoFlagsCompat.of(GET_PERMISSIONS.toLong())
+            val flags = PackageInfoFlagsCompat.of(GET_PERMISSIONS_L)
             getPackageInfoCompat(packageName, flags)!!.requestedPermissions
         } catch (e: Exception) {
             Timber.w(e)

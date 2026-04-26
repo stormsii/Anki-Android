@@ -42,6 +42,7 @@ import anki.collection.OpChanges
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.backend.stripHTMLScriptAndStyleTags
+import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog
 import com.ichi2.anki.filtered.FilteredDeckOptionsFragment
 import com.ichi2.anki.libanki.Collection
@@ -51,7 +52,7 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleReminders
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.ui.internationalization.toSentenceCase
+import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
 import kotlinx.coroutines.Job
@@ -432,7 +433,7 @@ class StudyOptionsFragment :
             if (!isDynamic) {
                 deckInfoLayout.visibility = View.GONE
                 buttonStart.visibility = View.VISIBLE
-                buttonStart.text = TR.actionsCustomStudy().toSentenceCase(R.string.sentence_custom_study)
+                buttonStart.text = TR.sentenceCase.customStudy
             } else {
                 buttonStart.visibility = View.GONE
             }

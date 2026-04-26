@@ -99,7 +99,7 @@
     <string name="slide_to_cancel" comment="Message shown when pressing the record button">Glissez pour annuler</string>
     <string name="filter_by_flags" maxLength="41">Marqueurs</string>
     <!-- filtered deck options -->
-    <string name="filtered_option_delay_again">Delay for again</string>
+    <string name="filtered_option_delay_again">Retarder encore pour</string>
     <string name="filtered_option_delay_hard">Delay for hard</string>
     <string name="filtered_option_delay_good">Delay for good</string>
     <!-- Custom study options -->
@@ -151,8 +151,6 @@
     <string name="preview_progress_bar_text" comment="What card we are on out of how many in card previewer progress bar">%1$d sur %2$d</string>
     <string name="rename" comment="Confirm that the renaming action should be processed." maxLength="28">Renommer</string>
     <string name="checks_action" maxLength="28">Vérifier</string>
-    <string name="check_db" maxLength="28">Vérifier la base de données</string>
-    <string name="check_media" maxLength="28">Vérifier les médias</string>
     <string name="empty_cards" maxLength="28">Cartes vides</string>
     <string name="unknown_type_field_warning">Taper la réponse : champ inconnu %s</string>
     <string name="delete_deck" comment="Message on a progress bar starting a deck is being deleted.">Suppression du paquet&#8230;</string>
@@ -216,6 +214,10 @@
     <!-- Whiteboard eraser mode toggle message in Reviewer -->
     <string name="white_board_eraser_enabled">Mode efface activé</string>
     <string name="white_board_eraser_disabled">Mode efface désactivé</string>
+    <string comment="Progress amount e.g. \'28 MB/141 MB\'. %1$s is the current amount, %2$s is the max." name="progress_amount_bytes">%1$s/%2$s</string>
+    <string name="media_file_size_warning_title">Média trop volumineux</string>
+    <string name="media_file_size_warning_message" comment="1$s: File name, 2$s: File size, 3$s: The size limit (e.g. 100MB)">Le fichier \"%1$s\" (%2$s) dépasse la limite AnkiWeb de %3$s et ne peut pas être synchronisé. Ajouter quand même ?</string>
+    <string name="media_file_size_add_anyway">Ajouter quand même</string>
     <!-- Whiteboard save image message in the Study Screen -->
     <string name="white_board_image_save_failed">Impossible d\'enregistrer l\'image du tableau blanc. %s</string>
     <string name="white_board_image_saved">Image du tableau blanc enregistrée dans %s</string>
@@ -264,6 +266,9 @@
     <string name="create_shortcut_error">Erreur lors de l\'ajout du raccourci : %s</string>
     <string name="note_editor_capitalize" comment="This is for a switch with a checkbox - on: enabled" maxLength="28">Mettre en majuscules les phrases</string>
     <string name="menu_scroll_toolbar" comment="Checkbox stating whether note editor toolbar is scrollable or stacked. Checked: Scroll" maxLength="28">Barre d\'outils à défilement</string>
+    <!-- Dialog hints -->
+    <string name="dialog_hint_url">URL</string>
+    <string name="dialog_hint_certificate">Certificat</string>
     <!-- IncrementNumberRangePreference -->
     <string name="plus_sign" comment="Label for increment button in IncrementerNumberRangePreference">+</string>
     <string name="minus_sign" comment="Label for decrement button in IncrementerNumberRangePreference">-</string>
@@ -273,7 +278,7 @@
     <!-- Used for credential empty warning message -->
     <string name="invalid_email">Saisir un email valide</string>
     <string name="password_empty">Mot de passe requis</string>
-    <string name="back_pressed_once">Réappuyez sur la touche Retour pour quitter</string>
+    <string name="back_pressed_once">Go back again to exit</string>
     <!-- %% is required to display % symbol. Reference: https://stackoverflow.com/a/16834358 -->
     <string name="percentage">%s %%</string>
     <string name="download_deck">Télécharger le paquet</string>

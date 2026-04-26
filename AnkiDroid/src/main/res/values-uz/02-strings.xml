@@ -151,8 +151,6 @@
     <string name="preview_progress_bar_text" comment="What card we are on out of how many in card previewer progress bar">%2$d dan %1$d</string>
     <string name="rename" comment="Confirm that the renaming action should be processed." maxLength="28">Nomini oʻzgartirish</string>
     <string name="checks_action" maxLength="28">Tekshirish</string>
-    <string name="check_db" maxLength="28">Maʼlumotlar bazasini tekshirish</string>
-    <string name="check_media" maxLength="28">Media fayllarni tekshirish</string>
     <string name="empty_cards" maxLength="28">Boʻsh kartalar</string>
     <string name="unknown_type_field_warning">Kiritish javobi: nomaʼlum %s maydoni</string>
     <string name="delete_deck" comment="Message on a progress bar starting a deck is being deleted.">Dasta oʻchirilmoqda&#8230;</string>
@@ -216,6 +214,10 @@
     <!-- Whiteboard eraser mode toggle message in Reviewer -->
     <string name="white_board_eraser_enabled">Oʻchirgʻich rejimi yoqildi</string>
     <string name="white_board_eraser_disabled">Oʻchirgʻich rejimi oʻchirildi</string>
+    <string comment="Progress amount e.g. \'28 MB/141 MB\'. %1$s is the current amount, %2$s is the max." name="progress_amount_bytes">%1$s/%2$s</string>
+    <string name="media_file_size_warning_title">Media fayl juda katta</string>
+    <string name="media_file_size_warning_message" comment="1$s: File name, 2$s: File size, 3$s: The size limit (e.g. 100MB)">\"%1$s\" (%2$s) fayli AnkiWebʼning %3$s limitidan oshadi va uni sinxronlab boʻlmaydi. Baribir qoʻshmoqchimisiz?</string>
+    <string name="media_file_size_add_anyway">Baribir qoʻshish</string>
     <!-- Whiteboard save image message in the Study Screen -->
     <string name="white_board_image_save_failed">Yozuv taxtasi rasmini saqlab boʻlmadi. %s</string>
     <string name="white_board_image_saved">Yozuv taxtasi rasmi %s ga saqlandi</string>
@@ -264,6 +266,9 @@
     <string name="create_shortcut_error">Yorliq qoʻshishda xatolik: %s</string>
     <string name="note_editor_capitalize" comment="This is for a switch with a checkbox - on: enabled" maxLength="28">Jumlalar bosh harf bilan</string>
     <string name="menu_scroll_toolbar" comment="Checkbox stating whether note editor toolbar is scrollable or stacked. Checked: Scroll" maxLength="28">Asboblar panelini aylantirish</string>
+    <!-- Dialog hints -->
+    <string name="dialog_hint_url">URL</string>
+    <string name="dialog_hint_certificate">Sertifikat</string>
     <!-- IncrementNumberRangePreference -->
     <string name="plus_sign" comment="Label for increment button in IncrementerNumberRangePreference">+</string>
     <string name="minus_sign" comment="Label for decrement button in IncrementerNumberRangePreference">-</string>
@@ -273,7 +278,7 @@
     <!-- Used for credential empty warning message -->
     <string name="invalid_email">Yaroqli e-pochta manzilini kiriting</string>
     <string name="password_empty">Parol talab etiladi</string>
-    <string name="back_pressed_once">Chiqish uchun yana bir bor bosing</string>
+    <string name="back_pressed_once">Chiqish uchun yana orqaga qayting</string>
     <!-- %% is required to display % symbol. Reference: https://stackoverflow.com/a/16834358 -->
     <string name="percentage">%s%%</string>
     <string name="download_deck">Dastani yuklab olish</string>

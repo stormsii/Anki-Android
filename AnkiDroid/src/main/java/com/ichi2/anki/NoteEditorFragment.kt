@@ -79,6 +79,7 @@ import androidx.lifecycle.lifecycleScope
 import anki.config.ConfigKey
 import anki.notes.NoteFieldsCheckResponse
 import com.google.android.material.color.MaterialColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anim.ActivityTransitionAnimation
 import com.ichi2.anki.CollectionManager.TR
@@ -89,8 +90,11 @@ import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.ShortcutGroupProvider
 import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.common.utils.ext.ifZero
+import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
+import com.ichi2.anki.compat.setTooltipTextCompat
 import com.ichi2.anki.dialogs.ChangeNoteTypeDialog
 import com.ichi2.anki.dialogs.DeckSelectionDialog.DeckSelectionListener
 import com.ichi2.anki.dialogs.DiscardChangesDialog
@@ -98,7 +102,10 @@ import com.ichi2.anki.dialogs.IntegerDialog
 import com.ichi2.anki.dialogs.tags.TagsDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
+import com.ichi2.anki.exception.MediaSizeLimitExceededException
+import com.ichi2.anki.exception.toBytesShortString
 import com.ichi2.anki.libanki.Card
+import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.CardOrdinal
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.Consts
@@ -115,21 +122,18 @@ import com.ichi2.anki.libanki.Utils
 import com.ichi2.anki.libanki.clozeNumbersInNote
 import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.model.SelectableDeck
-import com.ichi2.anki.multimedia.AudioRecordingFragment
-import com.ichi2.anki.multimedia.AudioVideoFragment
-import com.ichi2.anki.multimedia.MultimediaActivity.Companion.MULTIMEDIA_RESULT
-import com.ichi2.anki.multimedia.MultimediaActivity.Companion.MULTIMEDIA_RESULT_FIELD_INDEX
+import com.ichi2.anki.multimedia.MultimediaActionHandler
 import com.ichi2.anki.multimedia.MultimediaActivityExtra
 import com.ichi2.anki.multimedia.MultimediaBottomSheet
 import com.ichi2.anki.multimedia.MultimediaImageFragment
+import com.ichi2.anki.multimedia.MultimediaResult
+import com.ichi2.anki.multimedia.MultimediaResultContract
 import com.ichi2.anki.multimedia.MultimediaUtils.createImageFile
 import com.ichi2.anki.multimedia.MultimediaViewModel
 import com.ichi2.anki.multimediacard.IMultimediaEditableNote
-import com.ichi2.anki.multimediacard.fields.AudioRecordingField
 import com.ichi2.anki.multimediacard.fields.EFieldType
 import com.ichi2.anki.multimediacard.fields.IField
 import com.ichi2.anki.multimediacard.fields.ImageField
-import com.ichi2.anki.multimediacard.fields.MediaClipField
 import com.ichi2.anki.multimediacard.impl.MultimediaEditableNote
 import com.ichi2.anki.noteeditor.CustomToolbarButton
 import com.ichi2.anki.noteeditor.FieldState
@@ -158,8 +162,6 @@ import com.ichi2.anki.utils.ext.sharedPrefs
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.ext.window
 import com.ichi2.anki.utils.openUrl
-import com.ichi2.compat.CompatHelper.Companion.getSerializableCompat
-import com.ichi2.compat.setTooltipTextCompat
 import com.ichi2.imagecropper.ImageCropper
 import com.ichi2.imagecropper.ImageCropper.Companion.CROP_IMAGE_RESULT
 import com.ichi2.imagecropper.ImageCropperLauncher
@@ -177,6 +179,7 @@ import com.ichi2.utils.KeyUtils
 import com.ichi2.utils.NoteFieldDecorator
 import com.ichi2.utils.TextViewUtil
 import com.ichi2.utils.configureView
+import com.ichi2.utils.iconAttr
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.neutralButton
@@ -187,6 +190,7 @@ import com.ichi2.utils.title
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import net.ankiweb.rsdroid.Backend
 import org.json.JSONArray
 import timber.log.Timber
 import java.io.File
@@ -301,6 +305,10 @@ class NoteEditorFragment :
     private val noteEditorActivity
         get() = requireAnkiActivity() as? NoteEditorActivity
 
+    // List of affected cards (siblings) when editing notes.
+    private val cardIdsFromArguments: LongArray?
+        get() = arguments?.getLongArray(EXTRA_CARD_IDS)
+
     /**
      * Whether this is displayed in a fragment view.
      * If true, this fragment is on the trailing side of the card browser.
@@ -319,21 +327,19 @@ class NoteEditorFragment :
         )
 
     private val multimediaFragmentLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-            NoteEditorActivityResultCallback { result ->
-                if (result.resultCode == RESULT_CANCELED) {
+        registerForActivityResult(MultimediaResultContract()) { result ->
+            when (result) {
+                is MultimediaResult.Cancelled -> {
                     Timber.d("Multimedia result canceled")
-                    val index = result.data?.extras?.getInt(MULTIMEDIA_RESULT_FIELD_INDEX) ?: return@NoteEditorActivityResultCallback
-                    handleMultimediaActions(index)
-                    return@NoteEditorActivityResultCallback
+                    handleMultimediaActions(result.fieldIndex)
                 }
-
-                Timber.d("Getting multimedia result")
-                val extras = result.data?.extras ?: return@NoteEditorActivityResultCallback
-                handleMultimediaResult(extras)
-            },
-        )
+                is MultimediaResult.Success -> {
+                    Timber.d("Getting multimedia result")
+                    handleMultimediaResult(result)
+                }
+                null -> Timber.d("Multimedia launcher returned no result")
+            }
+        }
 
     private val requestTemplateEditLauncher =
         registerForActivityResult(
@@ -1374,7 +1380,10 @@ class NoteEditorFragment :
             // changed did? this has to be done first as remFromDyn() involves a direct write to the database
             if (currentEditedCard != null && currentEditedCard!!.currentDeckId() != deckId) {
                 reloadRequired = true
-                undoableOp { setDeck(listOf(currentEditedCard!!.id), deckId) }
+
+                val cardIdsToMove = getAffectedCards()
+                undoableOp { setDeck(cardIdsToMove, deckId) }
+
                 // refresh the card object to reflect the database changes from above
                 currentEditedCard!!.load(getColUnsafe)
                 // also reload the note object
@@ -1382,7 +1391,8 @@ class NoteEditorFragment :
                 // then set the card ID to the new deck
                 currentEditedCard!!.did = deckId
                 modified = true
-                Timber.d("deck ID updated to '%d'", deckId)
+
+                Timber.d("deck ID updated to '%d' for %d card(s) of note %d", deckId, cardIdsToMove.size, editorNote!!.id)
             }
             // now load any changes to the fields from the form
             for (f in editFields!!) {
@@ -1418,6 +1428,24 @@ class NoteEditorFragment :
             return
         }
         delegate?.onNoteSaved()
+    }
+
+    /**
+     * Returns the list of Card IDs that should be affected by bulk operations.
+     * For example deck changes.
+     *
+     * This list is determined by the caller (e.g., Card Browser) and passed
+     * via arguments.
+     *
+     * When the list is not provided, we use the current card.
+     */
+    private fun getAffectedCards(): List<CardId> {
+        val ids = cardIdsFromArguments
+        return if (ids != null && ids.isNotEmpty()) {
+            ids.toList()
+        } else {
+            listOf(currentEditedCard!!.id)
+        }
     }
 
     private fun closeNoteEditorAfterSave() {
@@ -1999,85 +2027,15 @@ class NoteEditorFragment :
                 if (note.isEmpty) return@launch
 
                 multimediaViewModel.multimediaAction.first { action ->
-                    when (action) {
-                        MultimediaBottomSheet.MultimediaAction.SELECT_IMAGE_FILE -> {
-                            Timber.i("Selected Image option")
-                            val field = ImageField()
-                            note.setField(fieldIndex, field)
-                            openMultimediaImageFragment(fieldIndex = fieldIndex, field, note)
-                        }
-
-                        MultimediaBottomSheet.MultimediaAction.SELECT_AUDIO_FILE -> {
-                            Timber.i("Selected audio clip option")
-                            val field = MediaClipField()
-                            note.setField(fieldIndex, field)
-                            val mediaIntent =
-                                AudioVideoFragment.getIntent(
-                                    requireContext(),
-                                    MultimediaActivityExtra(fieldIndex, field, note),
-                                    AudioVideoFragment.MediaOption.AUDIO_CLIP,
-                                )
-
-                            multimediaFragmentLauncher.launch(mediaIntent)
-                        }
-
-                        MultimediaBottomSheet.MultimediaAction.OPEN_DRAWING -> {
-                            Timber.i("Selected Drawing option")
-                            val field = ImageField()
-                            note.setField(fieldIndex, field)
-
-                            val drawingIntent =
-                                MultimediaImageFragment.getIntent(
-                                    requireContext(),
-                                    MultimediaActivityExtra(fieldIndex, field, note),
-                                    MultimediaImageFragment.ImageOptions.DRAWING,
-                                )
-
-                            multimediaFragmentLauncher.launch(drawingIntent)
-                        }
-
-                        MultimediaBottomSheet.MultimediaAction.SELECT_AUDIO_RECORDING -> {
-                            Timber.i("Selected audio recording option")
-                            val field = AudioRecordingField()
-                            note.setField(fieldIndex, field)
-                            val audioRecordingIntent =
-                                AudioRecordingFragment.getIntent(
-                                    requireContext(),
-                                    MultimediaActivityExtra(fieldIndex, field, note),
-                                )
-
-                            multimediaFragmentLauncher.launch(audioRecordingIntent)
-                        }
-
-                        MultimediaBottomSheet.MultimediaAction.SELECT_VIDEO_FILE -> {
-                            Timber.i("Selected video clip option")
-                            val field = MediaClipField()
-                            note.setField(fieldIndex, field)
-                            val mediaIntent =
-                                AudioVideoFragment.getIntent(
-                                    requireContext(),
-                                    MultimediaActivityExtra(fieldIndex, field, note),
-                                    AudioVideoFragment.MediaOption.VIDEO_CLIP,
-                                )
-
-                            multimediaFragmentLauncher.launch(mediaIntent)
-                        }
-
-                        MultimediaBottomSheet.MultimediaAction.OPEN_CAMERA -> {
-                            Timber.i("Selected Camera option")
-
-                            val field = ImageField()
-                            note.setField(fieldIndex, field)
-                            val imageIntent =
-                                MultimediaImageFragment.getIntent(
-                                    requireContext(),
-                                    MultimediaActivityExtra(fieldIndex, field, note),
-                                    MultimediaImageFragment.ImageOptions.CAMERA,
-                                )
-
-                            multimediaFragmentLauncher.launch(imageIntent)
-                        }
-                    }
+                    Timber.i("Selected multimedia action: %s", action)
+                    val handler = MultimediaActionHandler.forAction(action)
+                    val field = handler.createField().also { note.setField(fieldIndex, it) }
+                    val intent =
+                        handler.buildIntent(
+                            requireContext(),
+                            MultimediaActivityExtra(fieldIndex, field, note),
+                        )
+                    multimediaFragmentLauncher.launch(intent)
                     true
                 }
             }
@@ -2101,15 +2059,11 @@ class NoteEditorFragment :
         multimediaFragmentLauncher.launch(imageIntent)
     }
 
-    private fun handleMultimediaResult(extras: Bundle) {
-        val index = extras.getInt(MULTIMEDIA_RESULT_FIELD_INDEX)
-        val field =
-            extras.getSerializableCompat<IField>(MULTIMEDIA_RESULT)
-                ?: return
-
+    private fun handleMultimediaResult(result: MultimediaResult.Success) {
+        val field = result.field
         // Process successful result only if field has data
         if (field.type != EFieldType.TEXT || field.mediaFile != null) {
-            addMediaFileToField(index, field)
+            performAddMedia(result.fieldIndex, field, skipSizeCheck = false)
         } else {
             Timber.i("field imagePath and audioPath are both null")
         }
@@ -2120,36 +2074,66 @@ class NoteEditorFragment :
      *
      * @param index The index of the field within the note to update.
      * @param field The `IField` object representing the media file and its details.
+     * @param skipSizeCheck Whether to bypass the AnkiWeb media size limit check.
      */
-    private fun addMediaFileToField(
+
+    private fun performAddMedia(
         index: Int,
         field: IField,
+        skipSizeCheck: Boolean,
     ) {
         launchCatchingTask {
-            val note = getCurrentMultimediaEditableNote()
-            note.setField(index, field)
-            val fieldEditText = editFields!![index]
-
             // Import field media
             // This goes before setting formattedValue to update
             // media paths with the checksum when they have the same name
-            withCol {
-                try {
-                    NoteService.importMediaToDirectory(this, field)
-                } catch (oomError: OutOfMemoryError) {
-                    // TODO: a 'retry' flow would be possible here
-                    throw Exception(oomError)
+            try {
+                withCol {
+                    NoteService.importMediaToDirectory(this, field, skipSizeCheck = skipSizeCheck)
                 }
-            }
 
-            // Completely replace text for text fields (because current text was passed in)
-            val formattedValue = field.formattedValue
-            if (field.type === EFieldType.TEXT) {
-                fieldEditText.setText(formattedValue)
-            } else if (fieldEditText.text != null) {
-                insertStringInField(fieldEditText, formattedValue)
+                // Update UI
+                val fieldEditText = editFields!![index]
+                // Completely replace text for text fields (because current text was passed in)
+                val formattedValue = field.formattedValue
+                if (field.type === EFieldType.TEXT) {
+                    fieldEditText.setText(formattedValue)
+                } else if (fieldEditText.text != null) {
+                    insertStringInField(fieldEditText, formattedValue)
+                }
+                changed = true
+            } catch (e: MediaSizeLimitExceededException) {
+                showLargeMediaFileWarning(
+                    e.fileName,
+                    e.fileSize,
+                    onForceAdd = {
+                        // Recursive call to bypass the size check if the user wants to add anyway
+                        performAddMedia(index, field, skipSizeCheck = true)
+                    },
+                )
+            } catch (oomError: OutOfMemoryError) {
+                // TODO: a 'retry' flow would be possible here
+                throw Exception(oomError)
             }
-            changed = true
+        }
+    }
+
+    private fun showLargeMediaFileWarning(
+        fileName: String,
+        fileSize: Long,
+        onForceAdd: () -> Unit,
+    ) {
+        val context = requireContext()
+        val fileSizeStr = fileSize.toBytesShortString(context)
+        val limitStr = Backend.MAX_INDIVIDUAL_MEDIA_FILE_SIZE.toBytesShortString(context)
+
+        MaterialAlertDialogBuilder(context).show {
+            title(R.string.media_file_size_warning_title)
+            iconAttr(R.drawable.ic_warning)
+            message(text = getString(R.string.media_file_size_warning_message, fileName, fileSizeStr, limitStr))
+            positiveButton(R.string.dialog_cancel)
+            negativeButton(R.string.media_file_size_add_anyway) {
+                onForceAdd()
+            }
         }
     }
 
@@ -2217,8 +2201,8 @@ class NoteEditorFragment :
         }
     }
 
-    @NeedsTest("13719: moving from a note type with more fields to one with fewer fields")
-    private fun saveToggleStickyMap() {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun saveToggleStickyMap() {
         for ((key) in toggleStickyText.toMap()) {
             // handle fields for different note type with different size
             if (key < editFields!!.size) {
@@ -2920,6 +2904,7 @@ class NoteEditorFragment :
         const val RELOAD_REQUIRED_EXTRA_KEY = "reloadRequired"
         const val EXTRA_IMG_OCCLUSION = "image_uri"
         const val IN_CARD_BROWSER_ACTIVITY = "inCardBrowserActivity"
+        const val EXTRA_CARD_IDS = "EXTRA_CARD_IDS"
 
         // calling activity
         enum class NoteEditorCaller(

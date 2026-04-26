@@ -218,7 +218,7 @@
     <string name="custom_sync_server_title" maxLength="41">Propra servilo de samtempigo</string>
     <string name="custom_sync_server_summary_none_of_the_two_servers_used" comment="This summary is shown when neither of the two custom sync servers are used,         which is the default.">Ne uzata</string>
     <string name="custom_sync_server_help2"><![CDATA[Alternative al samtempigi kun AnkiWeb, vi povas uzi vian propran samtempigan servilon. Se nenio estas agordita, la implicita servilo de AnkiWeb estos uzata.<a href="%s">Pliaj informoj</a>]]></string>
-    <string name="custom_sync_server_base_url_title" maxLength="41">Samtempiga servilo</string>
+    <string name="custom_sync_server_base_url_title" maxLength="41">Sync URL</string>
     <string name="custom_sync_certificate_title" maxLength="41">Propra radika atestilo (PEM)</string>
     <!-- Key Bindings -->
     <string name="keyboard">Klavaro</string>
@@ -376,4 +376,5 @@ Vi povas restarigi el sekurkopio aŭ elporti vian kolekton per la menuo de listo
     <string name="flip_and_answer" maxLength="41" comment="Configuration of the \'Answer\' commands to answer the card if on the answer side, and flip it if on the question side">Inversigi kaj respondi</string>
     <!--Keyboard shortcuts dialog-->
     <string name="open_settings" comment="Description of the shortcut that opens the app settings">Malfermi agordojn</string>
+    <string name="related_settings_title" comment="Title of the section for related settings">Related settings</string>
 </resources>

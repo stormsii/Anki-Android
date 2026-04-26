@@ -1,10 +1,7 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     // Gradle plugin portal
     alias(libs.plugins.tripletPlay)
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.keeper)
@@ -34,12 +31,24 @@ idea {
 
 def homePath = System.properties['user.home']
 /**
- * @return the current git hash
+ * Calculates the current git hash, invalidates configuration cache if changed
  * @example edf739d95bad7b370a6ed4398d46723f8219b3cd
  */
-static def gitCommitHash() {
-    "git rev-parse HEAD".execute().text.trim()
-}
+// https://docs.gradle.org/current/userguide/configuration_cache_requirements.html#config_cache:requirements:external_processes
+def gitCommitHash = providers.exec {
+    commandLine "git", "rev-parse", "HEAD"
+}.standardOutput.asText.map { it.trim() }
+
+/**
+ * Epoch millis of the build. Displayed on the 'About' screen.
+ *
+ * CI passes the real time via -PbuildTime=<epoch> # example: 1776422957
+ *
+ * A local build uses a stale value (captured in the configuration cache) so the configuration cache
+ * is not invalidated on every build.
+ */
+def buildTimeMillis = providers.gradleProperty("buildTime")
+    .orElse(providers.provider { System.currentTimeMillis().toString() })
 
 android {
     namespace = "com.ichi2.anki"
@@ -50,6 +59,7 @@ android {
         buildConfig = true
         aidl = true
         viewBinding = true
+        resValues = true
     }
 
     if (rootProject.testReleaseBuild) {
@@ -64,8 +74,8 @@ android {
         buildConfigField "String", "ACRA_URL", '"https://ankidroid.org/acra/report"'
         buildConfigField "String", "BACKEND_VERSION", "\"${libs.versions.ankiBackend.get()}\""
         buildConfigField "Boolean", "ENABLE_LEAK_CANARY", "false"
-        buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash()}\""
-        buildConfigField "long", "BUILD_TIME", System.currentTimeMillis().toString()
+        buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash.get()}\""
+        buildConfigField "long", "BUILD_TIME", buildTimeMillis.get()
         resValue "string", "app_name", "AnkiDroid"
 
         // The version number is of the form:
@@ -89,9 +99,9 @@ android {
         //
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
-        versionCode=22400112
+        versionCode=22400202
         // If you change this to a new version, you probably also want to update .gradle/workflows/milestone.yml for the new version...
-        versionName="2.24.0alpha12"
+        versionName="2.24.0beta2"
         minSdk = libs.versions.minSdk.get().toInteger()
 
         // After #13695: change .tests_emulator.yml
@@ -252,6 +262,12 @@ android {
                     } else {
                         excludeTags "com.ichi2.anki.ScreenshotTestCategory"
                     }
+                    // Ensures that no EmptyApplication test relies on AnkiDroidApp
+                    //  by only running EmptyApplication tests
+                    // ./gradlew testFullDebugUnitTest -PemptyApplication
+                    if (project.hasProperty("emptyApplication")) {
+                        includeTags "com.ichi2.anki.EmptyApplicationCategory"
+                    }
                 }
             }
         }
@@ -271,12 +287,6 @@ android {
         targetCompatibility JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled = true
     }
-    kotlin {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_17
-        }
-    }
-
 
     packagingOptions {
         resources {
@@ -327,12 +337,13 @@ tasks.register('installGitHook', Copy) {
 // to run manually: `./gradlew installGitHook`
 tasks.named('preBuild').configure { dependsOn('installGitHook') }
 
-
 // Issue 11078 - some emulators run, but run zero tests, and still report success
 tasks.register('assertNonzeroAndroidTests') {
+    // Resolve the directory at configuration time, which is Gradle Configuration Cache compatible
+    def resultsDir = layout.buildDirectory.dir("outputs/androidTest-results/connected/flavors/play")
     doLast {
         // androidTest currently creates one .xml file per emulator with aggregate results in this dir
-        File folder = file("./build/outputs/androidTest-results/connected/flavors/play")
+        File folder = resultsDir.get().asFile
         File[] listOfFiles = folder.listFiles({ d, f -> f ==~ /.*.xml/ } as FilenameFilter)
         for (File file : listOfFiles) {
             // The aggregate results file currently contains a line with this pattern holding test count
@@ -386,6 +397,8 @@ dependencies {
 
     // modules
     implementation project(":common")
+    implementation project(":common:android")
+    implementation project(":compat")
     implementation project(":libanki")
     implementation project(":vbpd")
 
@@ -456,7 +469,9 @@ dependencies {
     // build via AnkiDroidApp.
     implementation libs.leakcanary.android
 
-    testImplementation project(":libanki:testutils")
+    testImplementation testFixtures(project(":libanki"))
+    testImplementation testFixtures(project(":common"))
+    testImplementation testFixtures(project(":compat"))
 
     // A path for a testing library which provide Parameterized Test
     testImplementation libs.junit.jupiter

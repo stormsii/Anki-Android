@@ -35,10 +35,12 @@ import anki.import_export.exportLimit
 import anki.notes.noteIds
 import com.ichi2.anki.ALL_DECKS_ID
 import com.ichi2.anki.CollectionManager
+import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.R
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.time.getTimestamp
+import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.databinding.DialogExportOptionsBinding
 import com.ichi2.anki.exportApkgPackage
 import com.ichi2.anki.exportCollectionPackage
@@ -48,7 +50,6 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.DeckNameId
 import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.ui.BasicItemSelectedListener
-import com.ichi2.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import kotlinx.coroutines.launch
@@ -86,7 +87,7 @@ class ExportDialogFragment : DialogFragment() {
             .Builder(requireActivity())
             .setView(binding.root)
             .negativeButton(R.string.dialog_cancel)
-            .positiveButton(R.string.dialog_ok) {
+            .positiveButton(text = TR.actionsExport()) {
                 val selectedIndex = binding.exportTypeSelector.selectedItemPosition
                 // just to be safe, if not exporting a collection and the decks spinner is not
                 // enabled(the user was really fast or fetching the decks is delayed for some
