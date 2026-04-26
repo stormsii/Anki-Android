@@ -161,7 +161,7 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew jacocoUnitTestReport --daemon
 
-        # specific unit test for the ImageCropperg
+        # specific unit test for the ImageCropper
       - name: Run ImageCropper Tests
         run: ./gradlew :AnkiDroid:testPlayDebugUnitTest --tests "com.ichi2.imagecropper.ImageCropperTest" --daemon
 
